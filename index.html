@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Aventura Espacial do Raffiq</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(180deg, #000428 0%, #004e92 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            color: #00FFFF;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        .instructions {
+            color: white;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+        .tip {
+            color: #FFD700;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        #game-container {
+            border: 4px solid #00FFFF;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const { useState, useEffect, useRef } = React;
+
+        function SpaceGame() {
+            const gameRef = useRef(null);
+            const phaserGameRef = useRef(null);
+
+            useEffect(() => {
+                if (phaserGameRef.current) return;
+
+                const config = {
+                    type: Phaser.AUTO,
+                    width: 800,
+                    height: 600,
+                    parent: gameRef.current,
+                    backgroundColor: '#000022',
+                    physics: {
+                        default: 'arcade',
+                        arcade: {
+                            gravity: { y: 0 },
+                            debug: false
+                        }
+                    },
+                    scene: {
+                        preload: preload,
+                        create: create,
+                        update: update
+                    }
+                };
+
+                let player;
+                let stars;
+                let asteroids;
+                let cursors;
+                let score = 0;
+                let scoreText;
+                let gameOver = false;
+                let gameOverText;
+                let bg;
+                
+                // Novos elementos para os planetas
+                let explorePlanets;
+                let currentExplorePlanet;
+                let planetNameText;
+                let currentPlanetIndex = 0;
+                
+                const planetsData = [
+                    { name: "Mercúrio", color: 0xb5b5b5, size: 35 },
+                    { name: "Vênus", color: 0xffcc66, size: 40 },
+                    { name: "Terra", color: 0x3399ff, size: 42 },
+                    { name: "Marte", color: 0xff5533, size: 38 },
+                    { name: "Júpiter", color: 0xffaa77, size: 55 },
+                    { name: "Saturno", color: 0xffdd99, size: 52 },
+                    { name: "Urano", color: 0x66ffff, size: 45 },
+                    { name: "Netuno", color: 0x3366ff, size: 44 }
+                ];
+
+                function preload() {
+                    this.textures.generate('player', { 
+                        data: ['00300', '03330', '30003', '03330', '00300'], 
+                        pixelWidth: 8 
+                    });
+                    
+                    this.textures.generate('star', { 
+                        data: ['0030000', '0030000', '3333330', '0333300', '3333330', '0030000', '0030000'], 
+                        pixelWidth: 4 
+                    });
+                    
+                    this.textures.generate('asteroid', { 
+                        data: ['033330', '303033', '330303', '303330', '033300'], 
+                        pixelWidth: 6 
+                    });
+                }
+
+                function create() {
+                    bg = this.add.group();
+                    for (let i = 0; i < 100; i++) {
+                        const x = Phaser.Math.Between(0, 800);
+                        const y = Phaser.Math.Between(0, 600);
+                        const star = this.add.circle(x, y, 1, 0xFFFFFF, 0.6);
+                        bg.add(star);
+                    }
+
+                    player = this.physics.add.sprite(400, 500, 'player');
+                    player.setScale(3);
+                    player.setCollideWorldBounds(true);
+                    player.setTint(0x00FFFF);
+
+                    stars = this.physics.add.group();
+                    asteroids = this.physics.add.group();
+                    explorePlanets = this.physics.add.group();
+
+                    cursors = this.input.keyboard.createCursorKeys();
+
+                    scoreText = this.add.text(16, 16, 'Pontos: 0', { 
+                        fontSize: '32px', 
+                        fill: '#FFF',
+                        fontFamily: 'Arial',
+                        stroke: '#000',
+                        strokeThickness: 4
+                    });
+                    
+                    // Texto do nome do planeta
+                    planetNameText = this.add.text(400, 50, '', {
+                        fontSize: '48px',
+                        fill: '#FFD700',
+                        fontFamily: 'Arial',
+                        stroke: '#000',
+                        strokeThickness: 6
+                    }).setOrigin(0.5).setAlpha(0);
+
+                    this.time.addEvent({
+                        delay: 1500,
+                        callback: spawnStar,
+                        callbackScope: this,
+                        loop: true
+                    });
+
+                    this.time.addEvent({
+                        delay: 2000,
+                        callback: spawnAsteroid,
+                        callbackScope: this,
+                        loop: true
+                    });
+
+                    this.physics.add.overlap(player, stars, collectStar, null, this);
+                    this.physics.add.overlap(player, asteroids, hitAsteroid, null, this);
+                    this.physics.add.overlap(player, explorePlanets, discoverPlanet, null, this);
+                    
+                    // Spawnar o primeiro planeta para explorar
+                    spawnExplorePlanet.call(this);
+                }
+
+                function spawnExplorePlanet() {
+                    if (gameOver) return;
+                    
+                    const planetData = planetsData[currentPlanetIndex];
+                    const x = Phaser.Math.Between(100, 700);
+                    const y = Phaser.Math.Between(100, 400);
+                    
+                    currentExplorePlanet = this.add.circle(x, y, planetData.size, planetData.color, 0.8);
+                    this.physics.add.existing(currentExplorePlanet);
+                    currentExplorePlanet.body.setImmovable(true);
+                    currentExplorePlanet.planetName = planetData.name;
+                    currentExplorePlanet.discovered = false;
+                    
+                    explorePlanets.add(currentExplorePlanet);
+                    
+                    // Animação suave de pulsação
+                    this.tweens.add({
+                        targets: currentExplorePlanet,
+                        scaleX: 1.1,
+                        scaleY: 1.1,
+                        duration: 1500,
+                        yoyo: true,
+                        repeat: -1,
+                        ease: 'Sine.easeInOut'
+                    });
+                }
+                
+                function discoverPlanet(player, planet) {
+                    if (planet.discovered || gameOver) return;
+                    
+                    planet.discovered = true;
+                    
+                    // Mostrar nome do planeta
+                    planetNameText.setText(planet.planetName);
+                    planetNameText.setAlpha(1);
+                    
+                    // Animação do texto
+                    this.tweens.add({
+                        targets: planetNameText,
+                        scale: { from: 0.8, to: 1.2 },
+                        duration: 400,
+                        yoyo: true,
+                        repeat: 2
+                    });
+                    
+                    // Efeito visual no planeta
+                    this.tweens.add({
+                        targets: planet,
+                        angle: 360,
+                        duration: 2000,
+                        ease: 'Linear'
+                    });
+                    
+                    // Brilho no planeta
+                    const glow = this.add.circle(planet.x, planet.y, planet.radius * 1.5, 0xFFFFFF, 0.3);
+                    this.tweens.add({
+                        targets: glow,
+                        alpha: 0,
+                        scale: 2,
+                        duration: 1000,
+                        onComplete: () => glow.destroy()
+                    });
+                    
+                    // Pontos por descobrir planeta
+                    score += 50;
+                    scoreText.setText('Pontos: ' + score);
+                    
+                    // Próximo planeta após 3 segundos
+                    this.time.delayedCall(3000, () => {
+                        this.tweens.add({
+                            targets: planetNameText,
+                            alpha: 0,
+                            duration: 500
+                        });
+                        
+                        planet.destroy();
+                        currentPlanetIndex = (currentPlanetIndex + 1) % planetsData.length;
+                        spawnExplorePlanet.call(this);
+                    });
+                }
+
+                function spawnStar() {
+                    if (gameOver) return;
+                    
+                    const x = Phaser.Math.Between(50, 750);
+                    const star = stars.create(x, 0, 'star');
+                    star.setScale(3);
+                    star.setVelocityY(150);
+                    star.setTint(0xFFFF00);
+                }
+
+                function spawnAsteroid() {
+                    if (gameOver) return;
+                    
+                    const x = Phaser.Math.Between(50, 750);
+                    const asteroid = asteroids.create(x, 0, 'asteroid');
+                    asteroid.setScale(2);
+                    asteroid.setVelocityY(200);
+                    asteroid.setTint(0x888888);
+                    asteroid.setAngularVelocity(100);
+                }
+
+                function collectStar(player, star) {
+                    star.destroy();
+                    score += 10;
+                    scoreText.setText('Pontos: ' + score);
+                    
+                    const flash = this.add.circle(star.x, star.y, 20, 0xFFFF00, 0.8);
+                    this.tweens.add({
+                        targets: flash,
+                        alpha: 0,
+                        scale: 2,
+                        duration: 300,
+                        onComplete: () => flash.destroy()
+                    });
+                }
+
+                function hitAsteroid(player, asteroid) {
+                    if (gameOver) return;
+                    
+                    // gameOver = true;
+                    
+                    // this.physics.pause();
+                    player.setTint(0xFF0000);
+                    
+                    for (let i = 0; i < 8; i++) {
+                        const particle = this.add.circle(player.x, player.y, 5, 0xFF6600);
+                        const angle = (i / 8) * Math.PI * 2;
+                        this.tweens.add({
+                            targets: particle,
+                            x: player.x + Math.cos(angle) * 100,
+                            y: player.y + Math.sin(angle) * 100,
+                            alpha: 0,
+                            duration: 500,
+                            onComplete: () => particle.destroy()
+                        });
+                    }
+
+                    // gameOverText = this.add.text(400, 250, 'GAME OVER!', {
+                    //     fontSize: '64px',
+                    //     fill: '#FF0000',
+                    //     fontFamily: 'Arial',
+                    //     stroke: '#FFF',
+                    //     strokeThickness: 6
+                    // });
+                    // gameOverText.setOrigin(0.5);
+
+                    // const finalScoreText = this.add.text(400, 320, 'Pontuação Final: ' + score, {
+                    //     fontSize: '32px',
+                    //     fill: '#FFF',
+                    //     fontFamily: 'Arial',
+                    //     stroke: '#000',
+                    //     strokeThickness: 4
+                    // });
+                    // finalScoreText.setOrigin(0.5);
+
+                    // const restartText = this.add.text(400, 380, 'Pressione ESPAÇO para jogar novamente', {
+                    //     fontSize: '24px',
+                    //     fill: '#FFFF00',
+                    //     fontFamily: 'Arial',
+                    //     stroke: '#000',
+                    //     strokeThickness: 3
+                    // });
+                    // restartText.setOrigin(0.5);
+
+                    // this.input.keyboard.once('keydown-SPACE', () => {
+                    //     this.scene.restart();
+                    //     score = 0;
+                    //     gameOver = false;
+                    //     currentPlanetIndex = 0;
+                    // });
+                }
+
+                function update() {
+                    if (gameOver) return;
+
+                    if (cursors.left.isDown) {
+                        player.setVelocityX(-300);
+                    } else if (cursors.right.isDown) {
+                        player.setVelocityX(300);
+                    } else {
+                        player.setVelocityX(0);
+                    }
+
+                    if (cursors.up.isDown) {
+                        player.setVelocityY(-300);
+                    } else if (cursors.down.isDown) {
+                        player.setVelocityY(300);
+                    } else {
+                        player.setVelocityY(0);
+                    }
+
+                    stars.children.entries.forEach(star => {
+                        if (star.y > 650) {
+                            star.destroy();
+                        }
+                    });
+
+                    asteroids.children.entries.forEach(asteroid => {
+                        if (asteroid.y > 650) {
+                            asteroid.destroy();
+                        }
+                    });
+
+                    bg.children.entries.forEach((star, index) => {
+                        star.y += 0.5;
+                        if (star.y > 600) {
+                            star.y = 0;
+                        }
+                    });
+                }
+
+                phaserGameRef.current = new Phaser.Game(config);
+
+                return () => {
+                    if (phaserGameRef.current) {
+                        phaserGameRef.current.destroy(true);
+                        phaserGameRef.current = null;
+                    }
+                };
+            }, []);
+
+            return React.createElement('div', { className: 'container' },
+                React.createElement('h1', null, '🚀 Aventura Espacial do Raffiq 🌟'),
+                React.createElement('p', { className: 'instructions' }, 
+                    'Use as setas ← → ↑ ↓ para mover a nave'),
+                React.createElement('p', { className: 'tip' }, 
+                    'Colete estrelas ⭐, descubra planetas 🪐 e desvie dos asteroides! 💥'),
+                React.createElement('div', { ref: gameRef, id: 'game-container' })
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(SpaceGame));
+    </script>
+</body>
+</html>
