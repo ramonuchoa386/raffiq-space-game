@@ -157,6 +157,10 @@
     <div id="root"></div>
 
     <script>
+        const playerImg = "assets/player_raffiq.png"
+        const startImg = "assets/star.png"
+        const asteroidImg = "assets/asteroid.png"
+
         const { useState, useEffect, useRef } = React;
 
         function SpaceGame() {
@@ -222,6 +226,9 @@
                     left: false,
                     right: false
                 };
+
+                let bostaSound;
+                let collectSound;
                 
                 const planetsData = [
                     { name: "Mercúrio", color: 0xb5b5b5, size: 35 },
@@ -235,6 +242,12 @@
                 ];
 
                 function preload() {
+                    this.load.audio('bostaSound', "assets/bosta.mp3");
+                    this.load.audio('collectSound', "assets/collect.wav");
+                    this.load.image('playerImg', playerImg);
+                    this.load.image('startImg', startImg);
+                    this.load.image('asteroidImg', asteroidImg);
+
                     this.textures.generate('player', { 
                         data: ['00300', '03330', '30003', '03330', '00300'], 
                         pixelWidth: 8 
@@ -254,6 +267,8 @@
                 function create() {
                     const width = this.scale.width;
                     const height = this.scale.height;
+                    bostaSound = this.sound.add('bostaSound', { volume: 1.5 });
+                    collectSound = this.sound.add('collectSound', { volume: 0.5 });
 
                     bg = this.add.group();
                     for (let i = 0; i < 100; i++) {
@@ -263,10 +278,10 @@
                         bg.add(star);
                     }
 
-                    player = this.physics.add.sprite(width / 2, height - 80, 'player');
-                    player.setScale(3);
+                    player = this.physics.add.sprite(width / 2, height - 80, 'playerImg');
+                    player.setScale(0.1);
                     player.setCollideWorldBounds(true);
-                    player.setTint(0x00FFFF);
+                    // player.setTint(0x00FFFF);
 
                     stars = this.physics.add.group();
                     asteroids = this.physics.add.group();
@@ -421,8 +436,8 @@
                     
                     const width = this.scale.width;
                     const x = Phaser.Math.Between(50, width - 50);
-                    const star = stars.create(x, 0, 'star');
-                    star.setScale(3);
+                    const star = stars.create(x, 0, 'startImg');
+                    star.setScale(0.01);
                     star.setVelocityY(150);
                     star.setTint(0xFFFF00);
                 }
@@ -432,8 +447,8 @@
                     
                     const width = this.scale.width;
                     const x = Phaser.Math.Between(50, width - 50);
-                    const asteroid = asteroids.create(x, 0, 'asteroid');
-                    asteroid.setScale(2);
+                    const asteroid = asteroids.create(x, 0, 'asteroidImg');
+                    asteroid.setScale(0.1);
                     asteroid.setVelocityY(200);
                     asteroid.setTint(0x888888);
                     asteroid.setAngularVelocity(100);
@@ -443,6 +458,10 @@
                     star.destroy();
                     score += 10;
                     scoreText.setText('Pontos: ' + score);
+
+                    if (collectSound) {
+                        collectSound.play()
+                    }
                     
                     const flash = this.add.circle(star.x, star.y, 20, 0xFFFF00, 0.8);
                     this.tweens.add({
@@ -460,7 +479,11 @@
                     // gameOver = true;
                     
                     // this.physics.pause();
-                    player.setTint(0xFF0000);
+                    // player.setTint(0xFF0000);
+
+                    if (bostaSound) {
+                        bostaSound.play();
+                    }
                     
                     for (let i = 0; i < 8; i++) {
                         const particle = this.add.circle(player.x, player.y, 5, 0xFF6600);
